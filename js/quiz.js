@@ -12,7 +12,6 @@ let currentNoteNote = '';
 let isProcessingAnswer = false; // 回答処理中フラグ
 let hasPlayedCurrentNote = false; // 現在の音符を再生済みかどうか
 
-
 /**
  * 音当てクイズを開始する関数
  */
@@ -34,6 +33,9 @@ function startPitchQuiz() {
     feedback.textContent = 'まず「音を聴く」ボタンを押してね';
     feedback.className = 'feedback instruction';
   }
+  
+  // フィードバックオーバーレイを非表示
+  hideFeedbackOverlay();
   
   // クイズタイトルにレベル表示を追加
   const quizTitle = document.querySelector('#pitch-quiz-screen .quiz-title');
@@ -219,6 +221,8 @@ function updateNoteAnswerButtons() {
     answerGrid.appendChild(button);
   });
 }
+
+
 /**
  * 楽譜クイズを開始する関数
  */
@@ -236,6 +240,9 @@ function startNoteQuiz() {
     feedback.textContent = '上の楽譜を見て、音を当ててね';
     feedback.className = 'feedback instruction';
   }
+  
+  // フィードバックオーバーレイを非表示
+  hideFeedbackOverlay();
   
   // クイズタイトルにレベル表示を追加
   const quizTitle = document.querySelector('#note-quiz-screen .quiz-title');
@@ -279,7 +286,6 @@ function resetNoteButtonStyles() {
   });
 }
 
-
 /**
  * 音当てクイズの回答をチェックする関数
  * @param {string} selectedNote - プレイヤーが選択した音符のID
@@ -300,6 +306,9 @@ function checkPitchAnswer(selectedNote) {
   const isCorrect = selectedNote === currentPitchNote;
   const feedback = document.getElementById('pitch-feedback');
   
+  // フィードバックオーバーレイを表示（ボタン操作を防止）
+  showFeedbackOverlay();
+  
   // 選択したボタンを強調表示
   highlightSelectedButton(selectedNote);
   
@@ -310,11 +319,9 @@ function checkPitchAnswer(selectedNote) {
     pitchScore += 10;
     totalScore += 10;
     
-    // 正解の効果音は再生しない
-    // playCorrectSound(); // 効果音を鳴らさない場合はコメントアウト
-    
     // 1秒後に次のクイズを開始（短縮）
     setTimeout(() => {
+      hideFeedbackOverlay();
       startPitchQuiz();
     }, 1000);
   } else {
@@ -322,9 +329,6 @@ function checkPitchAnswer(selectedNote) {
     const correctNoteName = getNoteNameById(currentPitchNote);
     feedback.innerHTML = `ざんねん...<br>正解は <span class="correct-answer">${correctNoteName}</span> でした`;
     feedback.className = 'feedback incorrect';
-    
-    // 不正解の効果音は再生しない
-    // playIncorrectSound(); // 効果音を鳴らさない場合はコメントアウト
     
     // 正解のボタンも強調表示
     highlightCorrectButton();
@@ -336,6 +340,7 @@ function checkPitchAnswer(selectedNote) {
     
     // 2秒後に次のクイズを開始
     setTimeout(() => {
+      hideFeedbackOverlay();
       startPitchQuiz();
     }, 2000);
   }
@@ -364,6 +369,9 @@ function checkNoteAnswer(selectedNote) {
   const isCorrect = selectedNote === currentNoteNote;
   const feedback = document.getElementById('note-feedback');
   
+  // フィードバックオーバーレイを表示（ボタン操作を防止）
+  showFeedbackOverlay();
+  
   // 選択したボタンを強調表示
   highlightNoteSelectedButton(selectedNote);
   
@@ -374,9 +382,6 @@ function checkNoteAnswer(selectedNote) {
     noteScore += 10;
     totalScore += 10;
     
-    // 正解の効果音は再生しない
-    // playCorrectSound(); // 効果音を鳴らさない場合はコメントアウト
-    
     // 選択した音符を再生
     setTimeout(() => {
       playNote(selectedNote);
@@ -384,6 +389,7 @@ function checkNoteAnswer(selectedNote) {
     
     // 1.5秒後に次のクイズを開始
     setTimeout(() => {
+      hideFeedbackOverlay();
       startNoteQuiz();
     }, 1500);
   } else {
@@ -391,9 +397,6 @@ function checkNoteAnswer(selectedNote) {
     const correctNoteName = getNoteNameById(currentNoteNote);
     feedback.innerHTML = `ざんねん...<br>正解は <span class="correct-answer">${correctNoteName}</span> でした`;
     feedback.className = 'feedback incorrect';
-    
-    // 不正解の効果音は再生しない
-    // playIncorrectSound(); // 効果音を鳴らさない場合はコメントアウト
     
     // 正解のボタンも強調表示
     setTimeout(() => {
@@ -407,6 +410,7 @@ function checkNoteAnswer(selectedNote) {
     
     // 2秒後に次のクイズを開始
     setTimeout(() => {
+      hideFeedbackOverlay();
       startNoteQuiz();
     }, 2000);
   }
@@ -416,6 +420,47 @@ function checkNoteAnswer(selectedNote) {
   
   // レベルの更新
   updateLevel();
+}
+
+
+/**
+ * フィードバックオーバーレイを非表示にする関数
+ */
+function hideFeedbackOverlay() {
+  const overlay = document.querySelector('.feedback-overlay');
+  if (overlay) {
+    overlay.classList.remove('active');
+  }
+  
+  // フィードバック自体も指示に戻す
+  const pitchFeedback = document.getElementById('pitch-feedback');
+  const noteFeedback = document.getElementById('note-feedback');
+  
+  if (pitchFeedback && currentScreen === 'pitch-quiz') {
+    pitchFeedback.textContent = 'まず「音を聴く」ボタンを押してね';
+    pitchFeedback.className = 'feedback instruction';
+  }
+  
+  if (noteFeedback && currentScreen === 'note-quiz') {
+    noteFeedback.textContent = '上の楽譜を見て、音を当ててね';
+    noteFeedback.className = 'feedback instruction';
+  }
+}
+
+/**
+ * フィードバックオーバーレイを表示する関数
+ */
+function showFeedbackOverlay() {
+  // オーバーレイがまだ存在しない場合は作成
+  let overlay = document.querySelector('.feedback-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.className = 'feedback-overlay';
+    document.body.appendChild(overlay);
+  }
+  
+  // オーバーレイを表示
+  overlay.classList.add('active');
 }
 
 /**
