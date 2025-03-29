@@ -195,6 +195,12 @@ document.addEventListener('DOMContentLoaded', initApp);
  */
 function saveScoresToStorage() {
   try {
+    // プライベートブラウジングモードなどでローカルストレージが使えない場合を考慮
+    if (!isLocalStorageAvailable()) {
+      console.warn('localStorage is not available');
+      return false;
+    }
+    
     const scoreData = {
       pitchScore,
       noteScore,
@@ -205,8 +211,10 @@ function saveScoresToStorage() {
     
     localStorage.setItem('musicQuizScores', JSON.stringify(scoreData));
     console.log('Scores saved to localStorage');
+    return true;
   } catch (error) {
     console.error('Failed to save scores to localStorage:', error);
+    return false;
   }
 }
 
@@ -215,6 +223,12 @@ function saveScoresToStorage() {
  */
 function loadScoresFromStorage() {
   try {
+    // プライベートブラウジングモードなどでローカルストレージが使えない場合を考慮
+    if (!isLocalStorageAvailable()) {
+      console.warn('localStorage is not available');
+      return false;
+    }
+    
     const savedData = localStorage.getItem('musicQuizScores');
     if (savedData) {
       const parsedData = JSON.parse(savedData);
@@ -241,17 +255,107 @@ function loadScoresFromStorage() {
     console.error('Failed to load scores from localStorage:', error);
   }
   
+  // デフォルト値を設定
+  pitchScore = 0;
+  noteScore = 0;
+  totalScore = 0;
+  level = 1;
+  
   return false;
 }
 
-// ウィンドウが閉じられる前にスコアを保存
-window.addEventListener('beforeunload', saveScoresToStorage);
+/**
+ * ローカルストレージが利用可能かチェックする
+ * @returns {boolean} - 利用可能な場合はtrue
+ */
+function isLocalStorageAvailable() {
+  try {
+    const testKey = '__storage_test__';
+    localStorage.setItem(testKey, testKey);
+    localStorage.removeItem(testKey);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
+ * セッションストレージをフォールバックとして使用する
+ */
+function saveScoresToSessionStorage() {
+  try {
+    const scoreData = {
+      pitchScore,
+      noteScore,
+      totalScore,
+      level,
+      lastUpdated: new Date().toISOString()
+    };
+    
+    sessionStorage.setItem('musicQuizScores', JSON.stringify(scoreData));
+    console.log('Scores saved to sessionStorage');
+    return true;
+  } catch (error) {
+    console.error('Failed to save scores to sessionStorage:', error);
+    return false;
+  }
+}
+
+/**
+ * セッションストレージからスコアを読み込む
+ */
+function loadScoresFromSessionStorage() {
+  try {
+    const savedData = sessionStorage.getItem('musicQuizScores');
+    if (savedData) {
+      const parsedData = JSON.parse(savedData);
+      
+      // スコアの復元
+      pitchScore = parsedData.pitchScore || 0;
+      noteScore = parsedData.noteScore || 0;
+      totalScore = parsedData.totalScore || 0;
+      level = parsedData.level || 1;
+      
+      console.log('Scores loaded successfully from sessionStorage');
+      return true;
+    }
+  } catch (error) {
+    console.error('Failed to load scores from sessionStorage:', error);
+  }
+  
+  return false;
+}
+
+// ページが閉じられる前にスコアを保存（localStorageとsessionStorage両方試す）
+window.addEventListener('beforeunload', () => {
+  // まずローカルストレージを試す
+  const localSaved = saveScoresToStorage();
+  
+  // ローカルストレージが失敗したらセッションストレージを試す
+  if (!localSaved) {
+    saveScoresToSessionStorage();
+  }
+});
 
 // 初期ロード時にスコアを読み込む試行
 document.addEventListener('DOMContentLoaded', () => {
   initApp();
-  loadScoresFromStorage();
+  
+  // まずローカルストレージを試す
+  const localLoaded = loadScoresFromStorage();
+  
+  // ローカルストレージが失敗したらセッションストレージを試す
+  if (!localLoaded) {
+    loadScoresFromSessionStorage();
+  }
+  
+  // クロスオリジンやプライバシーモードでの動作確認
+  if (!isLocalStorageAvailable()) {
+    console.warn('ローカルストレージが利用できません。プライベートブラウジングまたはブラウザの設定を確認してください。');
+  }
 });
+
+
 
 
 /**
@@ -267,3 +371,194 @@ function updateHomeScreenLevel() {
     }
   }
 }
+
+
+/**
+ * スコアの自動保存を設定
+ */
+function setupAutoSave() {
+  // スコアが変更されたときに自動保存するためのタイマー
+  let autoSaveTimer = null;
+  
+  // スコア自動保存を行う関数
+  function autoSaveScores() {
+    // まずローカルストレージを試す
+    const localSaved = saveScoresToStorage();
+    
+    // ローカルストレージが失敗したらセッションストレージを試す
+    if (!localSaved) {
+      saveScoresToSessionStorage();
+    }
+    
+    console.log('Auto-saved scores');
+  }
+  
+  // スコア変更を監視する関数
+  function onScoreChanged() {
+    // 既存のタイマーをクリア
+    if (autoSaveTimer) {
+      clearTimeout(autoSaveTimer);
+    }
+    
+    // 3秒後に自動保存
+    autoSaveTimer = setTimeout(autoSaveScores, 3000);
+  }
+  
+  // MutationObserverでDOM変更を監視
+  const scoreElements = [
+    document.getElementById('pitch-score'),
+    document.getElementById('note-score'),
+    document.getElementById('total-score-display')
+  ];
+  
+  // スコア表示要素の変更を監視
+  scoreElements.forEach(element => {
+    if (element) {
+      const observer = new MutationObserver(onScoreChanged);
+      observer.observe(element, { 
+        characterData: true, 
+        childList: true, 
+        subtree: true 
+      });
+    }
+  });
+  
+  // 定期的な自動保存（1分ごと）
+  setInterval(autoSaveScores, 60000);
+  
+  // ページがフォーカスを失ったときも保存
+  window.addEventListener('blur', autoSaveScores);
+  
+  // タブやウィンドウの可視性が変わったときも保存
+  document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'hidden') {
+      autoSaveScores();
+    }
+  });
+}
+
+// スコア更新関数をラップして自動保存を呼び出す
+const originalUpdateLevel = updateLevel;
+updateLevel = function() {
+  // 元の関数を呼び出す
+  originalUpdateLevel.apply(this, arguments);
+  
+  // スコア自動保存タイマーをリセット
+  if (typeof onScoreChanged === 'function') {
+    onScoreChanged();
+  }
+};
+
+// DOMContentLoadedイベントリスナーに自動保存設定を追加
+document.addEventListener('DOMContentLoaded', () => {
+  initApp();
+  
+  // スコアの読み込み
+  const localLoaded = loadScoresFromStorage();
+  if (!localLoaded) {
+    loadScoresFromSessionStorage();
+  }
+  
+  // 自動保存の設定
+  setupAutoSave();
+});
+
+
+/**
+ * ローカルストレージに関する通知を表示
+ */
+function showStorageNotice() {
+  // プライベートブラウジングなどでローカルストレージが使えない場合
+  if (!isLocalStorageAvailable()) {
+    // すでに通知が表示されている場合は表示しない
+    if (document.querySelector('.storage-notice')) {
+      return;
+    }
+    
+    // 通知要素を作成
+    const notice = document.createElement('div');
+    notice.className = 'storage-notice';
+    notice.innerHTML = `
+      <div class="notice-content">
+        <p>プライベートブラウジングモードなどの理由でスコアが保存されません。</p>
+        <button class="btn notice-close">閉じる</button>
+      </div>
+    `;
+    
+    // スタイルを追加
+    const style = document.createElement('style');
+    style.textContent = `
+      .storage-notice {
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background-color: rgba(255, 243, 205, 0.95);
+        color: #856404;
+        padding: 10px 15px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        z-index: 1000;
+        text-align: center;
+        font-size: 14px;
+        max-width: 90%;
+      }
+      
+      .notice-content {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      
+      .notice-close {
+        margin-top: 10px;
+        background-color: #856404;
+        color: white;
+        border: none;
+        padding: 5px 15px;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      
+      .notice-close:hover {
+        background-color: #6d5302;
+      }
+    `;
+    
+    // ボディに追加
+    document.head.appendChild(style);
+    document.body.appendChild(notice);
+    
+    // 閉じるボタン
+    const closeButton = notice.querySelector('.notice-close');
+    if (closeButton) {
+      closeButton.addEventListener('click', () => {
+        document.body.removeChild(notice);
+      });
+    }
+    
+    // 5秒後に自動的に消える
+    setTimeout(() => {
+      if (document.body.contains(notice)) {
+        notice.style.opacity = '0';
+        notice.style.transition = 'opacity 0.5s';
+        
+        setTimeout(() => {
+          if (document.body.contains(notice)) {
+            document.body.removeChild(notice);
+          }
+        }, 500);
+      }
+    }, 5000);
+  }
+}
+
+// プライバシーアラートの表示タイミングを追加
+document.addEventListener('DOMContentLoaded', () => {
+  // 既存の処理...
+  
+  // ローカルストレージ確認
+  setTimeout(() => {
+    showStorageNotice();
+  }, 2000); // ページ読み込み後2秒後に表示
+});
