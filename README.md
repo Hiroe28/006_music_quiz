@@ -2,7 +2,7 @@
 
 子ども向けの楽しく音楽を学べるクイズアプリです。音符の聴き分けや楽譜の読み方を遊びながら学習できます。
 
-![子ども向け音楽クイズ](https://raw.githubusercontent.com/username/music-quiz-kids/main/preview.png)
+![子ども向け音楽クイズ](https://raw.githubusercontent.com/username/music-quiz-kids/main/screenshot.png)
 
 ## 📌 特徴
 
