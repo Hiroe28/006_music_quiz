@@ -422,7 +422,7 @@ body {
   border-color: var(--warning-color);
 }
 
-/* オーバーレイ */
+/* オーディオオーバーレイとボタンの修正 */
 .audio-overlay {
   position: absolute;
   top: 0;
@@ -435,6 +435,7 @@ body {
   justify-content: center;
   z-index: 100;
   border-radius: var(--border-radius);
+  touch-action: manipulation; /* タッチデバイスでの操作を改善 */
 }
 
 .audio-btn {
@@ -446,6 +447,42 @@ body {
   border: none;
   border-radius: 8px;
   cursor: pointer;
+  transition: all 0.2s ease;
+  touch-action: manipulation; /* タッチデバイスでの操作を改善 */
+  /* 視認性向上のための追加スタイル */
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  position: relative;
+  overflow: hidden;
+  user-select: none; /* テキスト選択を防止 */
+  -webkit-user-select: none; /* Safari用 */
+  -webkit-tap-highlight-color: transparent; /* タップ時のハイライトを無効化 */
+}
+
+.audio-btn:hover, .audio-btn:active {
+  background-color: #f3f4f6;
+  transform: translateY(-2px);
+}
+
+.audio-btn::after {
+  content: '';
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.4) 10%, transparent 10.01%);
+  background-repeat: no-repeat;
+  background-position: 50%;
+  transform: scale(10, 10);
+  opacity: 0;
+  transition: transform 0.3s, opacity 0.5s;
+}
+
+.audio-btn:active::after {
+  transform: scale(0, 0);
+  opacity: 0.3;
+  transition: 0s;
 }
 
 /* レベルアップ通知 */
