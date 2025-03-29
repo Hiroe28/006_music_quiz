@@ -20,9 +20,6 @@ function initApp() {
   // イベントリスナーの設定
   setupEventListeners();
   
-  // 初期レベルに応じて音符セットを更新
-  updateNotesForLevel(level);
-  
   // ホーム画面表示
   showScreen('home');
 }
@@ -45,12 +42,20 @@ function showScreen(screenId) {
     updateHomeScreenLevel(); // ホーム画面のレベル表示を更新
   } else if (screenId === 'pitch-quiz') {
     pitchQuizScreen.classList.add('active');
+    
+    // 音当てクイズ用のレベルに応じて音符セットを更新
+    updateNotesForLevel(pitchLevel);
+    
     startPitchQuiz();
     
     // オーディオ初期化チェック
     checkAudioInitialized();
   } else if (screenId === 'note-quiz') {
     noteQuizScreen.classList.add('active');
+    
+    // 楽譜クイズ用のレベルに応じて音符セットを更新
+    updateNotesForLevel(noteLevel);
+    
     startNoteQuiz();
     
     // オーディオ初期化チェック
@@ -195,17 +200,11 @@ document.addEventListener('DOMContentLoaded', initApp);
  */
 function saveScoresToStorage() {
   try {
-    // プライベートブラウジングモードなどでローカルストレージが使えない場合を考慮
-    if (!isLocalStorageAvailable()) {
-      console.warn('localStorage is not available');
-      return false;
-    }
-    
     const scoreData = {
       pitchScore,
       noteScore,
-      totalScore,
-      level,
+      pitchLevel,  // 音当てクイズのレベルを追加
+      noteLevel,   // 楽譜クイズのレベルを追加
       lastUpdated: new Date().toISOString()
     };
     
@@ -217,18 +216,11 @@ function saveScoresToStorage() {
     return false;
   }
 }
-
 /**
  * ローカルストレージからスコアを読み込む
  */
 function loadScoresFromStorage() {
   try {
-    // プライベートブラウジングモードなどでローカルストレージが使えない場合を考慮
-    if (!isLocalStorageAvailable()) {
-      console.warn('localStorage is not available');
-      return false;
-    }
-    
     const savedData = localStorage.getItem('musicQuizScores');
     if (savedData) {
       const parsedData = JSON.parse(savedData);
@@ -236,11 +228,8 @@ function loadScoresFromStorage() {
       // スコアの復元
       pitchScore = parsedData.pitchScore || 0;
       noteScore = parsedData.noteScore || 0;
-      totalScore = parsedData.totalScore || 0;
-      level = parsedData.level || 1;
-      
-      // レベルに応じた音符セットの更新
-      updateNotesForLevel(level);
+      pitchLevel = parsedData.pitchLevel || 1;  // 音当てクイズのレベルを復元
+      noteLevel = parsedData.noteLevel || 1;    // 楽譜クイズのレベルを復元
       
       // 表示の更新
       updateScoreDisplay('pitch-score', pitchScore);
@@ -254,12 +243,6 @@ function loadScoresFromStorage() {
   } catch (error) {
     console.error('Failed to load scores from localStorage:', error);
   }
-  
-  // デフォルト値を設定
-  pitchScore = 0;
-  noteScore = 0;
-  totalScore = 0;
-  level = 1;
   
   return false;
 }
@@ -287,8 +270,8 @@ function saveScoresToSessionStorage() {
     const scoreData = {
       pitchScore,
       noteScore,
-      totalScore,
-      level,
+      pitchLevel,
+      noteLevel,
       lastUpdated: new Date().toISOString()
     };
     
@@ -300,7 +283,6 @@ function saveScoresToSessionStorage() {
     return false;
   }
 }
-
 /**
  * セッションストレージからスコアを読み込む
  */
@@ -313,8 +295,14 @@ function loadScoresFromSessionStorage() {
       // スコアの復元
       pitchScore = parsedData.pitchScore || 0;
       noteScore = parsedData.noteScore || 0;
-      totalScore = parsedData.totalScore || 0;
-      level = parsedData.level || 1;
+      pitchLevel = parsedData.pitchLevel || 1;
+      noteLevel = parsedData.noteLevel || 1;
+      
+      // 表示の更新
+      updateScoreDisplay('pitch-score', pitchScore);
+      updateScoreDisplay('note-score', noteScore);
+      updateProgressDisplay();
+      updateHomeScreenLevel();
       
       console.log('Scores loaded successfully from sessionStorage');
       return true;
@@ -364,14 +352,10 @@ document.addEventListener('DOMContentLoaded', () => {
 function updateHomeScreenLevel() {
   const subtitle = document.querySelector('#home-screen .subtitle');
   if (subtitle) {
-    if (level >= 2) {
-      subtitle.innerHTML = '音楽を楽しく学ぼう！ <span class="level-badge">レベル ' + level + '</span>';
-    } else {
-      subtitle.innerHTML = '音楽を楽しく学ぼう！ <span class="level-badge">レベル ' + level + '</span>';
-    }
+    // 両方のクイズのレベルを表示
+    subtitle.innerHTML = `音楽を楽しく学ぼう！ <span class="level-badge">音当て: ${pitchLevel}</span> <span class="level-badge">楽譜: ${noteLevel}</span>`;
   }
 }
-
 
 /**
  * スコアの自動保存を設定
@@ -437,16 +421,23 @@ function setupAutoSave() {
   });
 }
 
-// スコア更新関数をラップして自動保存を呼び出す
-const originalUpdateLevel = updateLevel;
-updateLevel = function() {
+// 新しい方法で自動保存を設定
+const originalUpdatePitchLevel = updatePitchLevel;
+updatePitchLevel = function() {
   // 元の関数を呼び出す
-  originalUpdateLevel.apply(this, arguments);
+  originalUpdatePitchLevel.apply(this, arguments);
   
-  // スコア自動保存タイマーをリセット
-  if (typeof onScoreChanged === 'function') {
-    onScoreChanged();
-  }
+  // スコアを保存
+  saveScoresToStorage();
+};
+
+const originalUpdateNoteLevel = updateNoteLevel;
+updateNoteLevel = function() {
+  // 元の関数を呼び出す
+  originalUpdateNoteLevel.apply(this, arguments);
+  
+  // スコアを保存
+  saveScoresToStorage();
 };
 
 // DOMContentLoadedイベントリスナーに自動保存設定を追加

@@ -2,15 +2,16 @@
  * クイズの管理に関するモジュール
  */
 
-// スコアと状態管理
+// スコアと状態管理 - 独立したレベルを追加
 let pitchScore = 0;
 let noteScore = 0;
-let totalScore = 0;
-let level = 1;
+let pitchLevel = 1; // 音当てクイズ専用レベル
+let noteLevel = 1;  // 楽譜クイズ専用レベル
 let currentPitchNote = '';
 let currentNoteNote = '';
 let isProcessingAnswer = false; // 回答処理中フラグ
 let hasPlayedCurrentNote = false; // 現在の音符を再生済みかどうか
+
 
 /**
  * 音当てクイズを開始する関数
@@ -40,11 +41,11 @@ function startPitchQuiz() {
   // クイズタイトルにレベル表示を追加
   const quizTitle = document.querySelector('#pitch-quiz-screen .quiz-title');
   if (quizTitle) {
-    quizTitle.innerHTML = `この音は何でしょう？ <span class="level-badge">レベル ${level}</span>`;
+    quizTitle.innerHTML = `この音は何でしょう？ <span class="level-badge">レベル ${pitchLevel}</span>`;
     
     // レベル2以上の場合は説明を追加
     const infoElement = document.querySelector('#pitch-quiz-screen .level-info');
-    if (level >= 2) {
+    if (pitchLevel >= 2) {
       if (!infoElement) {
         const noteInfo = document.createElement('div');
         noteInfo.className = 'level-info';
@@ -65,9 +66,13 @@ function startPitchQuiz() {
   // 回答ボタンを非アクティブにする
   setAnswerButtonsActive(false);
   
+  // 音当てクイズ用に音符セットを更新
+  updateNotesForLevel(pitchLevel);
+  
   // 回答ボタンを更新（すべての音符オプションを表示）
   updateAnswerButtons();
 }
+
 
 /**
  * 「音を聴く」ボタンの有効/無効を切り替える
@@ -123,6 +128,7 @@ function setAnswerButtonsActive(isActive) {
   });
 }
 
+
 /**
  * 回答ボタンのスタイルをリセットする
  */
@@ -147,7 +153,7 @@ function updateAnswerButtons() {
   const sortedNotes = [...notes].sort((a, b) => a.frequency - b.frequency);
   
   // 固定で列数を設定（レベルに応じて列数を変更）
-  if (level >= 2 && sortedNotes.length > 8) {
+  if (pitchLevel >= 2 && sortedNotes.length > 8) {
     // レベル2以上で音符が多い場合は4列
     answerGrid.style.gridTemplateColumns = 'repeat(4, 1fr)';
   } else {
@@ -192,7 +198,7 @@ function updateNoteAnswerButtons() {
   const sortedNotes = [...notes].sort((a, b) => a.frequency - b.frequency);
   
   // 固定で列数を設定（レベルに応じて列数を変更）
-  if (level >= 2 && sortedNotes.length > 8) {
+  if (noteLevel >= 2 && sortedNotes.length > 8) {
     // レベル2以上で音符が多い場合は4列
     answerGrid.style.gridTemplateColumns = 'repeat(4, 1fr)';
   } else {
@@ -247,11 +253,11 @@ function startNoteQuiz() {
   // クイズタイトルにレベル表示を追加
   const quizTitle = document.querySelector('#note-quiz-screen .quiz-title');
   if (quizTitle) {
-    quizTitle.innerHTML = `この楽譜はどの音？ <span class="level-badge">レベル ${level}</span>`;
+    quizTitle.innerHTML = `この楽譜はどの音？ <span class="level-badge">レベル ${noteLevel}</span>`;
     
     // レベル2以上の場合は説明を追加
     const infoElement = document.querySelector('#note-quiz-screen .level-info');
-    if (level >= 2) {
+    if (noteLevel >= 2) {
       if (!infoElement) {
         const noteInfo = document.createElement('div');
         noteInfo.className = 'level-info';
@@ -262,6 +268,9 @@ function startNoteQuiz() {
       infoElement.remove();
     }
   }
+  
+  // 楽譜クイズ用に音符セットを更新
+  updateNotesForLevel(noteLevel);
   
   // 楽譜を描画
   drawSheet(note.id);
@@ -285,6 +294,7 @@ function resetNoteButtonStyles() {
     button.classList.remove('correct-selected', 'incorrect-selected', 'show-correct');
   });
 }
+
 
 /**
  * 音当てクイズの回答をチェックする関数
@@ -317,7 +327,6 @@ function checkPitchAnswer(selectedNote) {
     feedback.textContent = 'せいかい！';
     feedback.className = 'feedback correct animate-bounce';
     pitchScore += 10;
-    totalScore += 10;
     
     // 1秒後に次のクイズを開始（短縮）
     setTimeout(() => {
@@ -351,8 +360,78 @@ function checkPitchAnswer(selectedNote) {
   // スコア表示の更新
   updateScoreDisplay('pitch-score', pitchScore);
   
-  // レベルの更新
-  updateLevel();
+  // レベルの更新 - 音当てクイズのみ
+  updatePitchLevel();
+}
+
+
+/**
+ * レベルアップ通知を表示する関数
+ * @param {string} quizType - クイズの種類（音当て/楽譜）
+ * @param {number} newLevel - 新しいレベル
+ * @param {number} oldLevel - 古いレベル
+ */
+function showLevelUpNotice(quizType, newLevel, oldLevel) {
+  const levelUpNotice = document.createElement('div');
+  levelUpNotice.className = 'level-up-notice';
+  
+  // レベル2以上になったときは拡張セットの紹介も表示
+  if (newLevel >= 2 && oldLevel < 2) {
+    levelUpNotice.innerHTML = `${quizType}クイズ レベル ${newLevel} になりました！<br>新しい音符が追加されました！`;
+  } else {
+    levelUpNotice.textContent = `${quizType}クイズ レベル ${newLevel} になりました！`;
+  }
+  
+  document.body.appendChild(levelUpNotice);
+  
+  // 2秒後に通知を消す
+  setTimeout(() => {
+    levelUpNotice.style.opacity = '0';
+    setTimeout(() => {
+      document.body.removeChild(levelUpNotice);
+    }, 500);
+  }, 2000);
+}
+
+/**
+ * 楽譜クイズのレベルを更新する関数
+ */
+function updateNoteLevel() {
+  const oldLevel = noteLevel;
+  const newLevel = Math.floor(noteScore / 100) + 1;
+  
+  if (newLevel > noteLevel) {
+    noteLevel = newLevel;
+    
+    // レベルに応じて音符セットを更新（楽譜クイズ用）
+    if (currentScreen === 'note-quiz') {
+      updateNotesForLevel(noteLevel);
+    }
+    
+    // レベルアップ時の演出
+    showLevelUpNotice('楽譜', noteLevel, oldLevel);
+  }
+}
+
+
+/**
+ * 音当てクイズのレベルを更新する関数
+ */
+function updatePitchLevel() {
+  const oldLevel = pitchLevel;
+  const newLevel = Math.floor(pitchScore / 100) + 1;
+  
+  if (newLevel > pitchLevel) {
+    pitchLevel = newLevel;
+    
+    // レベルに応じて音符セットを更新（音当てクイズ用）
+    if (currentScreen === 'pitch-quiz') {
+      updateNotesForLevel(pitchLevel);
+    }
+    
+    // レベルアップ時の演出
+    showLevelUpNotice('音当て', pitchLevel, oldLevel);
+  }
 }
 
 /**
@@ -380,7 +459,6 @@ function checkNoteAnswer(selectedNote) {
     feedback.textContent = 'せいかい！';
     feedback.className = 'feedback correct animate-bounce';
     noteScore += 10;
-    totalScore += 10;
     
     // 選択した音符を再生
     setTimeout(() => {
@@ -418,8 +496,8 @@ function checkNoteAnswer(selectedNote) {
   // スコア表示の更新
   updateScoreDisplay('note-score', noteScore);
   
-  // レベルの更新
-  updateLevel();
+  // レベルの更新 - 楽譜クイズのみ
+  updateNoteLevel();
 }
 
 
@@ -511,31 +589,127 @@ function updateScoreDisplay(elementId, score) {
   }
 }
 
+
 /**
  * 進捗表示を更新する関数
  */
 function updateProgressDisplay() {
-  // レベル表示
-  const levelDisplay = document.getElementById('level-display');
-  if (levelDisplay) {
-    levelDisplay.textContent = level;
-  }
+  // 音当てクイズのレベル進捗
+  const pitchLevelDisplay = document.createElement('div');
+  pitchLevelDisplay.innerHTML = `<div class="quiz-type-label">音当てクイズ:</div>
+                               <div class="level-display">レベル ${pitchLevel}</div>
+                               <div class="score-display">スコア: ${pitchScore}</div>`;
   
-  // 総スコア表示
-  const totalScoreDisplay = document.getElementById('total-score-display');
-  if (totalScoreDisplay) {
-    totalScoreDisplay.textContent = totalScore;
-  }
+  // 楽譜クイズのレベル進捗
+  const noteLevelDisplay = document.createElement('div');
+  noteLevelDisplay.innerHTML = `<div class="quiz-type-label">楽譜クイズ:</div>
+                             <div class="level-display">レベル ${noteLevel}</div>
+                             <div class="score-display">スコア: ${noteScore}</div>`;
   
-  // プログレスバーの更新
-  const progress = (totalScore % 100) / 100 * 100;
-  const levelProgress = document.getElementById('level-progress');
-  if (levelProgress) {
-    levelProgress.style.width = `${progress}%`;
+  // 表示コンテナの取得と初期化
+  const quizContainer = document.querySelector('#progress-screen .quiz-container');
+  if (quizContainer) {
+    quizContainer.innerHTML = '';
+    
+    // スタイルを追加
+    const style = document.createElement('style');
+    style.textContent = `
+      .quiz-progress-item {
+        background-color: rgba(255, 255, 255, 0.5);
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 15px;
+      }
+      .quiz-type-label {
+        font-weight: bold;
+        color: var(--primary-color);
+        margin-bottom: 5px;
+      }
+      .level-display {
+        font-size: 20px;
+        font-weight: bold;
+        color: var(--accent-color);
+        margin-bottom: 5px;
+      }
+      .next-level-label {
+        text-align: left;
+        margin-bottom: 5px;
+        font-size: 14px;
+        color: var(--light-text);
+      }
+      .level-badges {
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+        margin-top: 10px;
+      }
+      .level-badge-item {
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        background-color: #f3f4f6;
+        border: 2px solid #d1d5db;
+        font-size: 16px;
+      }
+      .level-badge-item.earned {
+        background-color: #fef3c7;
+        border-color: var(--warning-color);
+      }
+    `;
+    document.head.appendChild(style);
+    
+    // 音当てクイズの進捗項目
+    const pitchProgressItem = document.createElement('div');
+    pitchProgressItem.className = 'quiz-progress-item';
+    pitchProgressItem.innerHTML = `
+      <div class="quiz-type-label">音当てクイズ</div>
+      <div class="level-display">レベル ${pitchLevel}</div>
+      <div class="score-display">スコア: ${pitchScore}</div>
+      <div class="next-level-label">次のレベルまで:</div>
+      <div class="progress-bar">
+        <div class="progress-fill" style="width: ${(pitchScore % 100) / 100 * 100}%;"></div>
+      </div>
+      <div class="level-badges">
+        ${generateLevelBadges(pitchLevel, 3)}
+      </div>
+    `;
+    quizContainer.appendChild(pitchProgressItem);
+    
+    // 楽譜クイズの進捗項目
+    const noteProgressItem = document.createElement('div');
+    noteProgressItem.className = 'quiz-progress-item';
+    noteProgressItem.innerHTML = `
+      <div class="quiz-type-label">楽譜クイズ</div>
+      <div class="level-display">レベル ${noteLevel}</div>
+      <div class="score-display">スコア: ${noteScore}</div>
+      <div class="next-level-label">次のレベルまで:</div>
+      <div class="progress-bar">
+        <div class="progress-fill" style="width: ${(noteScore % 100) / 100 * 100}%;"></div>
+      </div>
+      <div class="level-badges">
+        ${generateLevelBadges(noteLevel, 3)}
+      </div>
+    `;
+    quizContainer.appendChild(noteProgressItem);
   }
-  
-  // バッジの更新
-  updateBadges();
+}
+
+/**
+ * レベルバッジを生成する関数
+ * @param {number} level - 現在のレベル
+ * @param {number} maxBadges - 表示するバッジの最大数
+ * @returns {string} - バッジのHTML
+ */
+function generateLevelBadges(level, maxBadges) {
+  let badgesHTML = '';
+  for (let i = 1; i <= maxBadges; i++) {
+    const isEarned = i <= level;
+    badgesHTML += `<div class="level-badge-item ${isEarned ? 'earned' : ''}">${isEarned ? '🌟' : '⭐'}</div>`;
+  }
+  return badgesHTML;
 }
 
 /**
@@ -627,20 +801,6 @@ function getScoreData() {
   };
 }
 
-/**
- * スコアをリセットする関数
- */
-function resetScores() {
-  pitchScore = 0;
-  noteScore = 0;
-  totalScore = 0;
-  level = 1;
-  
-  // 表示も更新
-  updateScoreDisplay('pitch-score', pitchScore);
-  updateScoreDisplay('note-score', noteScore);
-  updateProgressDisplay();
-}
 
 /**
  * スコアリセットの確認ダイアログを表示
@@ -723,14 +883,15 @@ function removeResetDialog() {
 function resetScores() {
   pitchScore = 0;
   noteScore = 0;
-  totalScore = 0;
-  level = 1;
+  pitchLevel = 1;
+  noteLevel = 1;
   
   // レベル1に応じた音符セットに戻す
-  updateNotesForLevel(level);
+  updateNotesForLevel(1);
   
   // 表示も更新
   updateScoreDisplay('pitch-score', pitchScore);
   updateScoreDisplay('note-score', noteScore);
   updateProgressDisplay();
+  updateHomeScreenLevel();
 }
